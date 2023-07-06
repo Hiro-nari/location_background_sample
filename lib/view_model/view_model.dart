@@ -1,38 +1,33 @@
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sample/repository/db_manager.dart';
+import 'package:location/location.dart';
 
-final viewModel = ChangeNotifierProvider((ref) => ViewModel());
+final locationProvider = FutureProvider.family((ref, _) async {
+  Location location = Location();
+  late bool _serviceEnabled;
+  PermissionStatus _permissionGranted;
+  LocationData _locationData;
 
-class ViewModel with ChangeNotifier {
-
-  List<String> stackedNameList = [];
-  List<String> currentNameList = [];
-
-  Future<void> getNames (WidgetRef ref) async {
-    stackedNameList = [];
-    currentNameList = await ref.read(dbManager).getNames();
-    for (var element in currentNameList) {
-      stackedNameList.add(element);
+  _serviceEnabled = await location.serviceEnabled();
+  if (!_serviceEnabled) {
+    _serviceEnabled = await location.requestService();
+    if (!_serviceEnabled) {
+      throw ("service not enabled");
     }
-    notifyListeners();
   }
 
-  Future<void> getNamesNext (WidgetRef ref) async {
-    currentNameList = await ref.read(dbManager).getNamesNext();
-    for (var element in currentNameList) {
-      stackedNameList.add(element);
+  _permissionGranted = await location.hasPermission();
+  if (_permissionGranted == PermissionStatus.denied) {
+    _permissionGranted = await location.requestPermission();
+    if (_permissionGranted != PermissionStatus.granted) {
+      throw ("permission not granted");
     }
-    notifyListeners();
   }
 
-  Future<void> deleteNames (WidgetRef ref) async{
-   await ref.read(dbManager).deleteNames();
-  }
+  _locationData = await location.getLocation();
+  location.enableBackgroundMode(enable: true);
+  location.onLocationChanged.listen((LocationData currentLocation) {
+    print("location.onLocationChanged 発火 $currentLocation");
+  });
 
-  Future<void> addNames (WidgetRef ref,List<String> names) async{
-    await ref.read(dbManager).addNames(names);
-  }
-
-}
+  return _locationData;
+});
